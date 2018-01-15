@@ -3,4 +3,8 @@ name = "scpi_derive"
 version = "0.1.0"
 authors = ["Janito Vaqueiro Ferreira Filho <janito.vff@gmail.com>"]
 
+[lib]
+name = "scpi_derive"
+proc-macro = true
+
 [dependencies]
