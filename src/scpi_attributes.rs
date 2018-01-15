@@ -1,12 +1,27 @@
 use quote::ToTokens;
 use syn::{Attribute, Ident, Lit, Meta, MetaList, MetaNameValue, NestedMeta};
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct ScpiAttributes {
     pub command: Option<String>,
 }
 
 impl ScpiAttributes {
+    pub fn apply<'a, T>(mut self, attributes: T) -> Self
+    where
+        T: IntoIterator<Item = &'a Attribute>,
+    {
+        for attribute in attributes {
+            let segments = &attribute.path.segments;
+
+            if segments.len() == 1 && segments[0].ident == "scpi" {
+                self.apply_attribute(attribute);
+            }
+        }
+
+        self
+    }
+
     fn apply_attribute(&mut self, attribute: &Attribute) {
         match attribute.interpret_meta() {
             Some(Meta::List(meta_list)) => self.apply_attribute_list(meta_list),
@@ -76,16 +91,6 @@ where
     T: IntoIterator<Item = &'a Attribute>,
 {
     fn from(attributes: T) -> Self {
-        let mut scpi_attributes = ScpiAttributes::default();
-
-        for attribute in attributes {
-            let segments = &attribute.path.segments;
-
-            if segments.len() == 1 && segments[0].ident == "scpi" {
-                scpi_attributes.apply_attribute(attribute);
-            }
-        }
-
-        scpi_attributes
+        ScpiAttributes::default().apply(attributes)
     }
 }
