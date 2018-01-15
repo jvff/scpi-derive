@@ -8,3 +8,5 @@ name = "scpi_derive"
 proc-macro = true
 
 [dependencies]
+quote = "0.4"
+syn = "0.12"
