@@ -75,19 +75,7 @@ fn implement_scpi_request_for_enum(
     let variant_names1 = variant_names.collect::<Vec<_>>();
     let variant_names2 = variant_names1.clone();
 
-    let commands = data.variants.iter().map(|variant| {
-        attributes
-            .clone()
-            .apply(&variant.attrs)
-            .command
-            .unwrap_or_else(|| {
-                panic!(
-                    "missing SCPI command for enum variant {}",
-                    variant.ident,
-                )
-            })
-    });
-    let commands1 = commands.collect::<Vec<_>>();
+    let commands1 = get_variant_commands(&attributes, data);
     let commands2 = commands1.clone();
 
     let names1 = repeat(name);
@@ -121,4 +109,23 @@ fn implement_scpi_request_for_enum(
             }
         }
     }
+}
+
+fn get_variant_commands(
+    attributes: &ScpiAttributes,
+    enum_data: &DataEnum,
+) -> Vec<String> {
+    enum_data.variants.iter().map(|variant| {
+        let variant_attributes = attributes.clone().apply(&variant.attrs);
+
+        match variant_attributes.command {
+            Some(command) => command,
+            None => {
+                panic!(
+                    "missing SCPI command for enum variant {}",
+                    variant.ident,
+                )
+            }
+        }
+    }).collect()
 }
