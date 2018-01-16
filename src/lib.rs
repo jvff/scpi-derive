@@ -15,7 +15,7 @@ use proc_macro::TokenStream;
 use quote::Tokens;
 use syn::{Data, DataEnum, DataStruct, DeriveInput};
 
-use command::{command_display, parse_command};
+use command::{command_decode, command_display, parse_command};
 use scpi_attributes::ScpiAttributes;
 
 #[proc_macro_derive(ScpiRequest, attributes(scpi))]
@@ -50,7 +50,9 @@ fn implement_scpi_request_for_struct(
     let command =
         attributes.command.expect("struct has no SCPI command specified");
     let parsed_command = parse_command(&command);
-    let display = command_display(parsed_command, &data.fields);
+
+    let display = command_display(parsed_command.clone(), &data.fields);
+    let decode = command_decode(parsed_command, &data.fields);
 
     quote! {
         impl ::std::fmt::Display for #name {
@@ -64,11 +66,7 @@ fn implement_scpi_request_for_struct(
 
         impl ::scpi::ScpiRequest for #name {
             fn decode(message: &str) -> Option<Self> {
-                if message == #command {
-                    Some(#name)
-                } else {
-                    None
-                }
+                #decode
             }
         }
     }

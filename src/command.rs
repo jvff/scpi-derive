@@ -30,6 +30,18 @@ pub fn command_display(pairs: Pairs<Rule, StrInput>, fields: &Fields) -> Tokens 
     }
 }
 
+pub fn command_decode(pairs: Pairs<Rule, StrInput>, fields: &Fields) -> Tokens {
+    match *fields  {
+        Fields::Named(ref named_fields) => {
+            command_decode_with_named_fields(pairs, named_fields)
+        }
+        Fields::Unnamed(ref unnamed_fields) => {
+            command_decode_with_unnamed_fields(pairs, unnamed_fields)
+        }
+        Fields::Unit => command_decode_without_fields(pairs),
+    }
+}
+
 fn command_display_with_named_fields(
     _pairs: Pairs<Rule, StrInput>,
     _fields: &FieldsNamed,
@@ -45,6 +57,40 @@ fn command_display_with_unnamed_fields(
 }
 
 fn command_display_without_fields(pairs: Pairs<Rule, StrInput>) -> Tokens {
+    let command_str = command_str_without_fields(pairs);
+
+    quote! {
+        write!(formatter, #command_str)
+    }
+}
+
+fn command_decode_with_named_fields(
+    _pairs: Pairs<Rule, StrInput>,
+    _fields: &FieldsNamed,
+) -> Tokens {
+    quote!(unimplemented!();)
+}
+
+fn command_decode_with_unnamed_fields(
+    _pairs: Pairs<Rule, StrInput>,
+    _fields: &FieldsUnnamed,
+) -> Tokens {
+    quote!(unimplemented!();)
+}
+
+fn command_decode_without_fields(pairs: Pairs<Rule, StrInput>) -> Tokens {
+    let command_str = command_str_without_fields(pairs);
+
+    quote! {
+        if message == #command_str {
+            Some(Self {})
+        } else {
+            None
+        }
+    }
+}
+
+fn command_str_without_fields(pairs: Pairs<Rule, StrInput>) -> String {
     let pairs = command_inner_pairs(pairs);
     let mut command_str = String::new();
 
@@ -66,9 +112,7 @@ fn command_display_without_fields(pairs: Pairs<Rule, StrInput>) -> Tokens {
         }
     }
 
-    quote! {
-        write!(formatter, #command_str)
-    }
+    command_str
 }
 
 fn command_inner_pairs(
