@@ -44,14 +44,8 @@ fn command_display_with_unnamed_fields(
     unimplemented!();
 }
 
-fn command_display_without_fields(mut pairs: Pairs<Rule, StrInput>) -> Tokens {
-    let command_pair = pairs.next().expect("failed to parse SCPI command");
-
-    if command_pair.as_rule() != Rule::command {
-        panic!("failed to parse SCPI command");
-    }
-
-    let pairs = command_pair.into_inner();
+fn command_display_without_fields(pairs: Pairs<Rule, StrInput>) -> Tokens {
+    let pairs = command_inner_pairs(pairs);
     let mut command_str = String::new();
 
     for pair in pairs {
@@ -75,4 +69,16 @@ fn command_display_without_fields(mut pairs: Pairs<Rule, StrInput>) -> Tokens {
     quote! {
         write!(formatter, #command_str)
     }
+}
+
+fn command_inner_pairs(
+    mut pairs: Pairs<Rule, StrInput>,
+) -> Pairs<Rule, StrInput> {
+    let command_pair = pairs.next().expect("failed to parse SCPI command");
+
+    if command_pair.as_rule() != Rule::command {
+        panic!("failed to parse SCPI command");
+    }
+
+    command_pair.into_inner()
 }
