@@ -8,5 +8,7 @@ name = "scpi_derive"
 proc-macro = true
 
 [dependencies]
+pest = "1.0.0-beta"
+pest_derive = "1.0.0-beta"
 quote = "0.4"
 syn = "0.12"

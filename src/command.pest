@@ -1,0 +1,8 @@
+command = { soi ~ ( required | parameter | space )+ ~ eoi }
+
+required = { required_char+ }
+parameter = { "{" ~ "}" }
+
+space = { " "+ }
+required_char = _{ upper_case | ":" | "*" | "?" }
+upper_case = _{ 'A'..'Z' }

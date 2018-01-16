@@ -1,16 +1,21 @@
+extern crate pest;
+#[macro_use]
+extern crate pest_derive;
 extern crate proc_macro;
 #[macro_use]
 extern crate quote;
 extern crate syn;
 
+mod command;
 mod scpi_attributes;
 
 use std::iter::repeat;
 
 use proc_macro::TokenStream;
 use quote::Tokens;
-use syn::{Data, DataEnum, DeriveInput};
+use syn::{Data, DataEnum, DataStruct, DeriveInput};
 
+use command::{command_display, parse_command};
 use scpi_attributes::ScpiAttributes;
 
 #[proc_macro_derive(ScpiRequest, attributes(scpi))]
@@ -24,8 +29,8 @@ pub fn derive_scpi_request(input: TokenStream) -> TokenStream {
 
 fn implement_scpi_request(syntax_tree: &DeriveInput) -> Tokens {
     match syntax_tree.data {
-        Data::Struct(_) => {
-            implement_scpi_request_for_struct(syntax_tree)
+        Data::Struct(ref data) => {
+            implement_scpi_request_for_struct(syntax_tree, data)
         }
         Data::Enum(ref data) => {
             implement_scpi_request_for_enum(syntax_tree, data)
@@ -36,11 +41,16 @@ fn implement_scpi_request(syntax_tree: &DeriveInput) -> Tokens {
     }
 }
 
-fn implement_scpi_request_for_struct(syntax_tree: &DeriveInput) -> Tokens {
+fn implement_scpi_request_for_struct(
+    syntax_tree: &DeriveInput,
+    data: &DataStruct,
+) -> Tokens {
     let name = syntax_tree.ident;
     let attributes = ScpiAttributes::from(syntax_tree.attrs.iter());
     let command =
         attributes.command.expect("struct has no SCPI command specified");
+    let parsed_command = parse_command(&command);
+    let display = command_display(parsed_command, &data.fields);
 
     quote! {
         impl ::std::fmt::Display for #name {
@@ -48,7 +58,7 @@ fn implement_scpi_request_for_struct(syntax_tree: &DeriveInput) -> Tokens {
                 &self,
                 formatter: &mut ::std::fmt::Formatter,
             ) -> ::std::fmt::Result {
-                write!(formatter, #command)
+                #display
             }
         }
 
