@@ -9,7 +9,7 @@ use syn::{Fields, FieldsNamed, FieldsUnnamed, Ident};
 const _GRAMMAR: &'static str = include_str!("command.pest");
 
 #[derive(Parser)]
-#[grammar = "command.pest"]
+#[grammar = "command/command.pest"]
 struct CommandParser;
 
 pub fn parse_command(command_str: &str) -> Pairs<Rule, StrInput> {
