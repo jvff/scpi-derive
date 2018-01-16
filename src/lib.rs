@@ -53,7 +53,7 @@ fn implement_scpi_request_for_struct(
     let parsed_command = parse_command(&command);
 
     let display = command_display(parsed_command.clone(), &data.fields);
-    let decode = command_decode(parsed_command, &data.fields);
+    let decode = command_decode(&name, parsed_command, &data.fields);
 
     quote! {
         impl ::std::fmt::Display for #name {
