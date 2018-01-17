@@ -18,10 +18,39 @@ pub fn command_display(pairs: Pairs<Rule, StrInput>, fields: &Fields) -> Tokens 
 }
 
 fn command_display_with_named_fields(
-    _pairs: Pairs<Rule, StrInput>,
-    _fields: &FieldsNamed,
+    pairs: Pairs<Rule, StrInput>,
+    fields: &FieldsNamed,
 ) -> Tokens {
-    unimplemented!();
+    let pairs = command_inner_pairs(pairs);
+    let mut fields_iter = fields.named.iter();
+    let mut command_str = String::new();
+    let mut parameters = Tokens::new();
+
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::required => command_str.push_str(pair.as_str()),
+            Rule::space => command_str.push(' '),
+            Rule::parameter => {
+                let field = fields_iter.next()
+                    .expect("more parameters than fields in SCPI command");
+
+                let field_name = field.ident.expect("missing field name");
+
+                command_str.push_str("{}");
+                parameters.append_all(quote!(, self.#field_name));
+            }
+            _ => {
+                panic!(
+                    "unexpected {:?} in parsed SCPI command string",
+                    pair.as_str(),
+                )
+            }
+        }
+    }
+
+    quote! {
+        write!(formatter, #command_str #parameters)
+    }
 }
 
 fn command_display_with_unnamed_fields(
