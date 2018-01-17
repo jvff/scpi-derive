@@ -29,6 +29,7 @@ fn command_display_with_named_fields(
     for pair in pairs {
         match pair.as_rule() {
             Rule::required => command_str.push_str(pair.as_str()),
+            Rule::optional => (),
             Rule::space => command_str.push(' '),
             Rule::parameter => {
                 let field = fields_iter.next()
@@ -66,6 +67,7 @@ fn command_display_with_unnamed_fields(
     for pair in pairs {
         match pair.as_rule() {
             Rule::required => command_str.push_str(pair.as_str()),
+            Rule::optional => (),
             Rule::space => command_str.push(' '),
             Rule::parameter => {
                 let field_index_token = Literal::integer(field_index as i64);
@@ -94,7 +96,27 @@ fn command_display_with_unnamed_fields(
 }
 
 fn command_display_without_fields(pairs: Pairs<Rule, StrInput>) -> Tokens {
-    let command_str = command_str_without_fields(pairs);
+    let pairs = command_inner_pairs(pairs);
+    let mut command_str = String::new();
+
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::required => command_str.push_str(pair.as_str()),
+            Rule::optional => (),
+            Rule::space => command_str.push(' '),
+            Rule::parameter => {
+                panic!(
+                    "types without fields can't have parameters in SCPI command"
+                )
+            }
+            _ => {
+                panic!(
+                    "unexpected {:?} in parsed SCPI command string",
+                    pair.as_str(),
+                )
+            }
+        }
+    }
 
     quote! {
         write!(formatter, #command_str)

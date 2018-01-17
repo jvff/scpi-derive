@@ -1,3 +1,5 @@
+use std::iter::empty;
+
 use pest::inputs::StrInput;
 use pest::iterators::Pairs;
 use quote::Tokens;
@@ -17,7 +19,7 @@ pub fn command_decode(
         Fields::Unnamed(ref unnamed_fields) => {
             command_decode_with_unnamed_fields(name, pairs, unnamed_fields)
         }
-        Fields::Unit => command_decode_without_fields(pairs),
+        Fields::Unit => command_decode_without_fields(name, pairs),
     }
 }
 
@@ -95,12 +97,31 @@ fn command_decode_with_unnamed_fields(
     }
 }
 
-fn command_decode_without_fields(pairs: Pairs<Rule, StrInput>) -> Tokens {
-    let command_str = command_str_without_fields(pairs);
+fn command_decode_without_fields(
+    name: &Ident,
+    pairs: Pairs<Rule, StrInput>,
+) -> Tokens {
+    let mut fields = empty();
+    let mut indices = empty();
+
+    let parse_steps = build_decode_parser(pairs, &mut fields, &mut indices);
 
     quote! {
-        if message == #command_str {
-            Some(Self {})
+        named!(parse_cmd(&[u8]) -> #name,
+            do_parse!(
+                #parse_steps
+                (#name)
+            )
+        );
+
+        let bytes = message.as_bytes();
+
+        if let ::nom::IResult::Done(remaining, instance) = parse_cmd(bytes) {
+            if remaining.len() == 0 {
+                Some(instance)
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -125,6 +146,11 @@ where
                 let literal = pair.as_str();
 
                 parse_steps.append_all(quote!(tag!(#literal) >>));
+            }
+            Rule::optional => {
+                let literal = pair.as_str();
+
+                parse_steps.append_all(quote!(opt!(tag!(#literal)) >>))
             }
             Rule::space => {
                 parse_steps.append_all(quote!(many1!(tag!(" ")) >>));
