@@ -12,7 +12,7 @@ pub fn command_decode(
 ) -> Tokens {
     match *fields  {
         Fields::Named(ref named_fields) => {
-            command_decode_with_named_fields(pairs, named_fields)
+            command_decode_with_named_fields(name, pairs, named_fields)
         }
         Fields::Unnamed(ref unnamed_fields) => {
             command_decode_with_unnamed_fields(name, pairs, unnamed_fields)
@@ -22,10 +22,40 @@ pub fn command_decode(
 }
 
 fn command_decode_with_named_fields(
-    _pairs: Pairs<Rule, StrInput>,
-    _fields: &FieldsNamed,
+    name: &Ident,
+    pairs: Pairs<Rule, StrInput>,
+    fields: &FieldsNamed,
 ) -> Tokens {
-    quote!(unimplemented!();)
+    let num_fields = fields.named.len();
+    let mut fields_iter = fields.named.iter();
+    let mut field_index = 0..num_fields;
+
+    let parse_steps =
+        build_decode_parser(pairs, &mut fields_iter, &mut field_index);
+
+    let collected_fields =
+        collect_parameters(fields.named.iter(), field_index, num_fields);
+
+    quote! {
+        named!(parse_cmd(&[u8]) -> #name,
+            do_parse!(
+                #parse_steps
+                (#name { #collected_fields })
+            )
+        );
+
+        let bytes = message.as_bytes();
+
+        if let ::nom::IResult::Done(remaining, instance) = parse_cmd(bytes) {
+            if remaining.len() == 0 {
+                Some(instance)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
 }
 
 fn command_decode_with_unnamed_fields(
