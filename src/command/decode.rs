@@ -35,33 +35,12 @@ fn command_decode_with_unnamed_fields(
 ) -> Tokens {
     let num_fields = fields.unnamed.len();
     let mut fields_iter = fields.unnamed.iter();
-    let mut field_index = (0..num_fields).peekable();
-    let mut collected_fields = Tokens::new();
+    let mut field_index = 0..num_fields;
 
     let parse_steps =
         build_decode_parser(pairs, &mut fields_iter, &mut field_index);
 
-    if field_index.len() == num_fields {
-        field_index.next().expect("Range::len() returned incorrect value");
-
-        collected_fields.append_all(quote!(Default::default()));
-    } else {
-        let field_name  = Term::intern("field_0");
-        let last_collected =
-            field_index.peek().map(Clone::clone).unwrap_or(num_fields);
-
-        collected_fields.append_all(quote!(#field_name));
-
-        for index in 1..last_collected {
-            let field_name = Term::intern(&format!("field_{}", index));
-
-            collected_fields.append_all(quote!(, #field_name));
-        }
-    }
-
-    for _ in field_index {
-        collected_fields.append_all(quote!(, Default::default()));
-    }
+    let collected_fields = collect_parameters(field_index, num_fields);
 
     quote! {
         named!(parse_cmd(&[u8]) -> #name,
@@ -145,4 +124,37 @@ where
     }
 
     parse_steps
+}
+
+fn collect_parameters<I>(indices: I, last_index: usize) -> Tokens
+where
+    I: Iterator<Item = usize>,
+{
+    let mut parameters = Tokens::new();
+    let mut indices = indices.peekable();
+
+    if indices.peek() == Some(&0) {
+        indices.next();
+        parameters.append_all(quote!(Default::default()));
+    } else {
+        let field_name  = Term::intern("field_0");
+        let last_collected = match indices.peek() {
+            Some(index) => index.clone(),
+            None => last_index,
+        };
+
+        parameters.append_all(quote!(#field_name));
+
+        for index in 1..last_collected {
+            let field_name = Term::intern(&format!("field_{}", index));
+
+            parameters.append_all(quote!(, #field_name));
+        }
+    }
+
+    for _ in indices {
+        parameters.append_all(quote!(, Default::default()));
+    }
+
+    parameters
 }
