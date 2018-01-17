@@ -1,7 +1,7 @@
 use pest::inputs::StrInput;
 use pest::iterators::Pairs;
 use quote::Tokens;
-use syn::{Fields, FieldsNamed, FieldsUnnamed, Ident};
+use syn::{Field, Fields, FieldsNamed, FieldsUnnamed, Ident};
 
 use super::*;
 
@@ -33,67 +33,34 @@ fn command_decode_with_unnamed_fields(
     pairs: Pairs<Rule, StrInput>,
     fields: &FieldsUnnamed,
 ) -> Tokens {
-    let pairs = command_inner_pairs(pairs);
     let num_fields = fields.unnamed.len();
     let mut fields_iter = fields.unnamed.iter();
-    let mut field_index = 0;
-    let mut parse_steps = Tokens::new();
+    let mut field_index = (0..num_fields).peekable();
     let mut collected_fields = Tokens::new();
 
-    for pair in pairs {
-        match pair.as_rule() {
-            Rule::required => {
-                let literal = pair.as_str();
+    let parse_steps =
+        build_decode_parser(pairs, &mut fields_iter, &mut field_index);
 
-                parse_steps.append_all(quote!(tag!(#literal) >>));
-            }
-            Rule::space => {
-                parse_steps.append_all(quote!(many1!(tag!(" ")) >>));
-            }
-            Rule::parameter => {
-                let field_data = fields_iter.next()
-                    .expect("more parameters than fields in SCPI command");
-                let field_type = &field_data.ty;
-                let field_name =
-                    Term::intern(&format!("field_{}", field_index));
+    if field_index.len() == num_fields {
+        field_index.next().expect("Range::len() returned incorrect value");
 
-                field_index += 1;
-
-                parse_steps.append_all(quote! {
-                    #field_name: call!(
-                        <#field_type as ::scpi::ScpiParameterParser>::parse
-                    ) >>
-                });
-            }
-            _ => {
-                panic!(
-                    "unexpected {:?} in parsed SCPI command string",
-                    pair.as_str(),
-                )
-            }
-        }
-    }
-
-    if field_index == 0 {
         collected_fields.append_all(quote!(Default::default()));
-
-        for _ in 1..num_fields {
-            collected_fields.append_all(quote!(, Default::default()));
-        }
     } else {
         let field_name  = Term::intern("field_0");
+        let last_collected =
+            field_index.peek().map(Clone::clone).unwrap_or(num_fields);
 
         collected_fields.append_all(quote!(#field_name));
 
-        for index in 1..field_index {
+        for index in 1..last_collected {
             let field_name = Term::intern(&format!("field_{}", index));
 
             collected_fields.append_all(quote!(, #field_name));
         }
+    }
 
-        for _ in field_index..num_fields {
-            collected_fields.append_all(quote!(, Default::default()));
-        }
+    for _ in field_index {
+        collected_fields.append_all(quote!(, Default::default()));
     }
 
     quote! {
@@ -128,4 +95,54 @@ fn command_decode_without_fields(pairs: Pairs<Rule, StrInput>) -> Tokens {
             None
         }
     }
+}
+
+fn build_decode_parser<'a, F, I>(
+    pairs: Pairs<Rule, StrInput>,
+    fields: &mut F,
+    field_indices: &mut I,
+) -> Tokens
+where
+    F: Iterator<Item = &'a Field>,
+    I: Iterator<Item = usize>,
+{
+    let pairs = command_inner_pairs(pairs);
+    let mut parse_steps = Tokens::new();
+
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::required => {
+                let literal = pair.as_str();
+
+                parse_steps.append_all(quote!(tag!(#literal) >>));
+            }
+            Rule::space => {
+                parse_steps.append_all(quote!(many1!(tag!(" ")) >>));
+            }
+            Rule::parameter => {
+                let field_index = field_indices.next()
+                    .expect("more parameters than fields in SCPI command");
+                let field_data = fields.next()
+                    .expect("more parameters than fields in SCPI command");
+
+                let field_type = &field_data.ty;
+                let field_name =
+                    Term::intern(&format!("field_{}", field_index));
+
+                parse_steps.append_all(quote! {
+                    #field_name: call!(
+                        <#field_type as ::scpi::ScpiParameterParser>::parse
+                    ) >>
+                });
+            }
+            _ => {
+                panic!(
+                    "unexpected {:?} in parsed SCPI command string",
+                    pair.as_str(),
+                )
+            }
+        }
+    }
+
+    parse_steps
 }
