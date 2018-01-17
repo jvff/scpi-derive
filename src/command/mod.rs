@@ -4,7 +4,7 @@ mod display;
 use pest::inputs::StrInput;
 use pest::iterators::Pairs;
 use pest::Parser;
-use proc_macro2::{Literal, Term};
+use proc_macro2::Literal;
 
 pub use self::decode::command_decode;
 pub use self::display::command_display;

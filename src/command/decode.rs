@@ -40,7 +40,8 @@ fn command_decode_with_unnamed_fields(
     let parse_steps =
         build_decode_parser(pairs, &mut fields_iter, &mut field_index);
 
-    let collected_fields = collect_parameters(field_index, num_fields);
+    let collected_fields =
+        collect_parameters(fields.unnamed.iter(), field_index, num_fields);
 
     quote! {
         named!(parse_cmd(&[u8]) -> #name,
@@ -76,13 +77,13 @@ fn command_decode_without_fields(pairs: Pairs<Rule, StrInput>) -> Tokens {
     }
 }
 
-fn build_decode_parser<'a, F, I>(
+fn build_decode_parser<'f, F, I>(
     pairs: Pairs<Rule, StrInput>,
     fields: &mut F,
     field_indices: &mut I,
 ) -> Tokens
 where
-    F: Iterator<Item = &'a Field>,
+    F: Iterator<Item = &'f Field>,
     I: Iterator<Item = usize>,
 {
     let pairs = command_inner_pairs(pairs);
@@ -101,12 +102,13 @@ where
             Rule::parameter => {
                 let field_index = field_indices.next()
                     .expect("more parameters than fields in SCPI command");
-                let field_data = fields.next()
+                let field = fields.next()
                     .expect("more parameters than fields in SCPI command");
 
-                let field_type = &field_data.ty;
-                let field_name =
-                    Term::intern(&format!("field_{}", field_index));
+                let field_type = &field.ty;
+                let field_name = field.ident.clone().unwrap_or_else(|| {
+                    Ident::from(format!("field_{}", field_index))
+                });
 
                 parse_steps.append_all(quote! {
                     #field_name: call!(
@@ -126,18 +128,33 @@ where
     parse_steps
 }
 
-fn collect_parameters<I>(indices: I, last_index: usize) -> Tokens
+fn collect_parameters<'f, F, I>(
+    mut fields: F,
+    indices: I,
+    last_index: usize,
+) -> Tokens
 where
+    F: Iterator<Item = &'f Field>,
     I: Iterator<Item = usize>,
 {
     let mut parameters = Tokens::new();
     let mut indices = indices.peekable();
 
+    let field = fields.next()
+        .expect("more parameters than fields in SCPI command");
+
     if indices.peek() == Some(&0) {
+        let field_name = field.ident
+            .map(|name| quote!(#name:))
+            .unwrap_or_else(|| Tokens::new());
+
         indices.next();
-        parameters.append_all(quote!(Default::default()));
+        parameters.append_all(quote!(#field_name Default::default()));
     } else {
-        let field_name  = Term::intern("field_0");
+        let field_name  = field.ident.clone().unwrap_or_else(|| {
+            Ident::from("field_0")
+        });
+
         let last_collected = match indices.peek() {
             Some(index) => index.clone(),
             None => last_index,
@@ -146,14 +163,27 @@ where
         parameters.append_all(quote!(#field_name));
 
         for index in 1..last_collected {
-            let field_name = Term::intern(&format!("field_{}", index));
+            let field = fields.next()
+                .expect("more parameters than fields in SCPI command");
+
+            let field_name = field.ident.clone().unwrap_or_else(|| {
+                Ident::from(format!("field_{}", index))
+            });
+
 
             parameters.append_all(quote!(, #field_name));
         }
     }
 
     for _ in indices {
-        parameters.append_all(quote!(, Default::default()));
+        let field = fields.next()
+            .expect("more parameters than fields in SCPI command");
+
+        let field_name = field.ident
+            .map(|name| quote!(#name:))
+            .unwrap_or_else(|| Tokens::new());
+
+        parameters.append_all(quote!(, #field_name Default::default()));
     }
 
     parameters
